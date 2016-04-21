@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename = 'css/style.css') }}"/>
+    <link href="{{ url_for('static', filename = 'css/jquery.dataTables.min.css') }}" rel="stylesheet" type="text/css">
+    <script src="{{ url_for('static', filename = 'js/jquery-1.12.0.min.js') }}" charset="utf-8"></script>
+    <script src="{{ url_for('static', filename = 'js/jquery.dataTables.min.js') }}" charset="utf-8"></script>
+    <link href="{{ url_for('static', filename = 'css/nv.d3.css') }}" rel="stylesheet" type="text/css">
+    <script src="{{ url_for('static', filename = 'js/d3.min.js') }}" charset="utf-8"></script>
+    <script src="{{ url_for('static', filename = 'js/nv.d3.min.js') }}" charset="utf-8"></script>
+    <title>MABED: Mention-anomaly-based Event Detection and Tracking in Twitter</title>
+</head>
+<body>
+    <div id="navigation">
+
+    </div>
+    <div id="header">
+        <h1>Mention-anomaly-based Event Detection and Tracking in Twitter</h1>
+        Parameters: k={{ k }}, theta={{ theta }}, sigma={{ sigma }}
+    </div>
+    <div class="main-content">
+        <section>Event table</section>
+            <table id="events" class="display" cellspacing="0" width="900px">
+                <thead>
+                    <tr>
+                        <th>Mag</th>
+                        <th>Start date</th>
+                        <th>End date</th>
+                        <th>Main term</th>
+                        <th>Related words</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td>{{ event[0] }}</td>
+                        <td>{{ event[1] }}</td>
+                        <td>{{ event[2] }}</td>
+                        <td>{{ event[3] }}</td>
+                        <td>{{ event[4] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        <section>Event impact</section>
+        <svg id="chart1"></svg>
+    </div>
+</body>
+<script>
+    $(document).ready(function() {
+        $('#events').dataTable( {
+            "order": [[ 0, 'desc' ]]
+        } );
+    });
+</script>
+<script>
+    var event_impact = {{ event_impact|safe }}
+
+    var colors = d3.scale.category20();
+
+    var chart;
+    nv.addGraph(function() {
+        chart = nv.models.stackedAreaChart()
+            .useInteractiveGuideline(true)
+            .x(function(d) { return d[0] })
+            .y(function(d) { return d[1] })
+            .controlLabels({stacked: "Stacked"});
+
+        chart.yAxis.scale().domain([0, 20]);
+        chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
+        chart.yAxis.tickFormat(d3.format(',.4f'));
+
+        chart.legend.vers('furious');
+
+        chart.showControls(false);
+
+        d3.select('#chart1')
+            .datum(event_impact)
+            .call(chart)
+            .each('start', function() {
+                setTimeout(function() {
+                    d3.selectAll('#chart1 *').each(function() {
+                        if(this.__transition__)
+                            this.__transition__.duration = 1;
+                    })
+                }, 0)
+            });
+
+        nv.utils.windowResize(chart.update);
+        return chart;
+    });
+</script>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html">
+  <title>Details about topic {{ topic_id }}</title>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename = 'css/style.css') }}"/>
+</head>
+<style>
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.bar {
+  fill: #55acee;
+}
+
+.bar:hover {
+  fill: #ccd6dd;
+}
+
+.x.axis path {
+  display: none;
+}
+
+.line {
+  fill: none;
+  stroke: #ff5611;
+  stroke-width: 1.5px;
+}
+
+.node {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.link {
+  stroke: #999;
+  stroke-opacity: 2;
+}
+</style>
+<body>
+    <div id="navigation">
+        <select onChange="window.location.href=((this.value == 'topics') ? '../topic_cloud.html' : '../vocabulary.html')">
+            <option selected="selected" disabled="disabled">Overview</option>
+            <option>topics</option>
+            <option>vocabulary</option>
+        </select>
+        -
+        <select onChange="window.location.href='../topic/'+this.value+'.html'">
+            <option selected="selected" disabled="disabled">Details about a topic</option>
+            {% for i in topic_ids %}
+                <option>{{ i }}</option>
+            {% endfor %}
+        </select>
+        -
+        <select onChange="window.location.href='../document/'+this.value+'.html'">
+            <option selected="selected" disabled="disabled">Details about a tweet</option>
+            {% for j in doc_ids %}
+                <option>{{ j }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div id="header">
+        <h1>Details about topic {{ topic_id }}</h1>
+        Overall frequency : {{ frequency }}%
+    </div>
+    <div id="wrap">
+        <div id="left_column">
+            <h2>Top words</h2>
+            <bar-chart></bar-chart>
+        </div>
+        <div id="right_column">
+        <h2>Related tweets ({{documents|length}})</h2>
+        <ul>
+            {% for doc in documents %}
+                <li>
+                    <strong><a href="../document/{{ doc[3] }}.html" class="class1">{{ doc[0] }}</a></strong>
+                    <br>
+                    {{ doc[1][1] }}
+                    <br>
+                    <i>{{ doc[2] }}</i>
+                </li>
+            {% endfor %}
+        </ul>
+        </div>
+    </div>
+</body>
+<script src="{{ url_for('static', filename = 'js/d3.min.js' )}}"></script>
+<script>
+// (document.body.clientWidth)*0.6
+var margin = {top: 10, right: 0, bottom: 100, left: 40},
+    width = 600 - margin.left - margin.right,
+    height = 350 - margin.top - margin.bottom;
+var x = d3.scale.ordinal()
+    .rangeRoundBands([0, width], .1);
+var y = d3.scale.linear()
+    .range([height, 0]);
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom");
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left");
+var svg = d3.select("bar-chart").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+d3.tsv("{{ url_for('static', filename = 'data/word_distribution'+topic_id+'.tsv') }}", type, function(error, data) {
+  x.domain(data.map(function(d) { return d.word; }));
+  y.domain([0, d3.max(data, function(d) { return d.weight; })]);
+  svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis)
+      .selectAll("text")
+            .style("text-anchor", "end")
+            .attr("dx", "-1em")
+            .attr("dy", "-0.7em")
+            .attr("transform", "rotate(-90)" );
+  svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis)
+    .append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 2)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Weight");
+  svg.selectAll(".bar")
+      .data(data)
+    .enter().append("rect")
+      .attr("class", "bar")
+      .attr("x", function(d) { return x(d.word); })
+      .attr("width", x.rangeBand())
+      .attr("y", function(d) { return y(d.weight); })
+      .attr("height", function(d) { return height - y(d.weight); })
+});
+function type(d) {
+  d.weight = +d.weight;
+  return d;
+}
+</script>
