@@ -1,6 +1,6 @@
 # coding: utf-8
 from flask import Flask, request, jsonify, render_template
-from flask.ext.frozen import Freezer
+from flask_frozen import Freezer
 import urllib2
 import json
 from datetime import datetime
@@ -13,9 +13,8 @@ from mabed_lib.corpus import Corpus as MABED_Corpus
 from mabed_lib.mabed import MABED
 import os
 import time
-from nltk import FreqDist, Text, wordpunct_tokenize, word_tokenize
+from nltk import FreqDist, word_tokenize
 import re
-
 
 __author__ = "Adrien Guille"
 __email__ = "adrien.guille@univ-lyon2.fr"
@@ -29,8 +28,8 @@ model = None
 k = None
 json_corpus = None
 topic_model = None
-min_tf = 4
-max_tf = 0.8
+min_tf = 3
+max_tf = 0.6
 lang = 'english'
 theta = 0.6
 sigma = 0.5
@@ -107,7 +106,12 @@ def get_corpus_tom():
     for i in range(0, len(json_corpus)):
         parsed_date = datetime.fromtimestamp(json_corpus[i]['date']/1000.0)
         cleaned_text = json_corpus[i]['text'].replace('\n', '').replace('\r', '').replace('\t', ' ')
-        csv_line = str(json_corpus[i]['id'])+'\t'+cleaned_text+'\t'+cleaned_text+'\t'+json_corpus[i]['name']+'\t'+str(parsed_date.strftime('%Y-%m-%d'))
+        cleaned_text0 = re.sub(r'(?:https?\://)\S+', 'URL', cleaned_text)
+        cleaned_text0 = re.sub(r'(?<=^|(?<=[^a-zA-Z0-9-\.]))@([A-Za-z_]+[A-Za-z0-9_]+)', 'USERNAME', cleaned_text0)
+        name = 'N/A'
+        if json_corpus[i].get('name') is not None:
+            name = json_corpus[i]['name'].replace('\n', '').replace('\r', '').replace('\t', ' ')
+        csv_line = str(json_corpus[i]['id'])+'\t'+cleaned_text+'\t'+cleaned_text0+'\t'+name+'\t'+str(parsed_date.strftime('%Y-%m-%d'))
         output_file.write(csv_line+'\n')
     return None
 
@@ -120,7 +124,7 @@ def get_corpus_mabed():
     global json_corpus
     content = response.read()
     json_corpus = json.loads(content)
-    output_file = codecs.open('csv/'+token+'.csv', 'w', 'utf-8')
+    output_file = codecs.open('csv/'+str(token)+'.csv', 'w', 'utf-8')
     output_file.write('date\ttext\n')
     for i in range(0, len(json_corpus)):
         parsed_date = datetime.fromtimestamp(json_corpus[i]['date']/1000.0)
@@ -145,7 +149,7 @@ def transmit_events(t_token, t_k, t_tsl, t_theta, t_sigma, t_lang):
     results_request.add_data(json_data)
     urllib2.urlopen(results_request)
     print 'Transmitted events for token '+t_token
-    os.remove('csv/'+t_token+'.csv')
+    os.remove('csv/' + t_token + '.csv')
 
 
 def transmit_vocabulary(t_token):
@@ -154,10 +158,6 @@ def transmit_vocabulary(t_token):
     all_tweets = []
     for line in lines:
         row = line.split('\t')
-        # text_without_url = unicode(re.sub(r'(?:https?\://)\S+', '', unicode(row[1])))
-        # text_without_url = row[1]
-        # tokens = wordpunct_tokenize(text_without_url)
-        # clean_text = Text(tokens)
         words = word_tokenize(row[1])
         all_tweets.extend([w.lower() for w in words])
     freq_distribution = FreqDist(all_tweets)
@@ -177,6 +177,7 @@ def transmit_vocabulary(t_token):
 
 
 def transmit_topic_model(t_token, t_model, t_k, t_min_tf, t_max_tf, t_lang):
+    TOM_Corpus.MAX_FEATURES = 5000
     corpus = TOM_Corpus(source_file_path='csv/'+t_token + '.csv',
                         vectorization='tf',
                         max_relative_frequency=t_max_tf,
@@ -194,14 +195,15 @@ def transmit_topic_model(t_token, t_model, t_k, t_min_tf, t_max_tf, t_lang):
         t_k = int(t_k)
         topic_model.infer_topics(t_k)
         result_data = {'token': t_token, 'result': '<a href="http://mediamining.univ-lyon2.fr/people/guille/cats/tom/' +
-                                                   t_token+'/topic_cloud.html" target="_blank">Topic model browser</a>'}
-        freeze_topic_model_browser()
+                                                   t_token+'/topic_cloud.html" target="_blank">Open the topic model browser in a new window</a>'}
+        prepare_topic_model_browser()
         json_data = json.dumps(result_data)
         results_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/module/result')
         results_request.add_header('Content-Type', 'application/json')
         results_request.add_data(json_data)
         urllib2.urlopen(results_request)
         print 'Transmitted topic model for token '+t_token
+        freeze_topic_model_browser()
         os.remove('csv/' + t_token + '.csv')
 
 
@@ -305,48 +307,57 @@ def word_details(wid):
                            documents=documents)
 
 
-def freeze_topic_model_browser():
+def prepare_topic_model_browser():
     global topic_associations, author_list, token
     os.makedirs('tom/'+token+'/static/data')
     topic_associations = topic_model.documents_per_topic()
     author_list = topic_model.corpus.all_authors()
-    print 'Freeze topic model browser'
-    topic_model_browser_app.config.update(
-        FREEZER_BASE_URL='http://mediamining.univ-lyon2.fr/people/guille/cats/tom/'+token,
-        FREEZER_DESTINATION='tom/'+token,
-        FREEZER_IGNORE_404_NOT_FOUND=True,
-        FREEZER_REMOVE_EXTRA_FILES=False,
-    )
-    freezer = Freezer(topic_model_browser_app)
-    @freezer.register_generator
-    def topic_details():
-        for topic_id in range(topic_model.nb_topics):
-            yield {'tid': topic_id}
-    @freezer.register_generator
-    def document_details():
-        for doc_id in range(topic_model.corpus.size):
-            yield {'did': doc_id}
-    @freezer.register_generator
-    def word_details():
-        for word_id in range(len(topic_model.corpus.vocabulary)):
-            yield {'wid': word_id}
-    topic_model_browser_app.debug = False
-    topic_model_browser_app.testing = True
-    topic_model_browser_app.config['ASSETS_DEBUG'] = False
-    freezer.freeze()
-    utils.save_topic_cloud(topic_model, 'tom/'+token+'/static/data/topic_cloud.json')
+    utils.save_topic_cloud(topic_model, 'tom/' + token + '/static/data/topic_cloud.json')
     print 'Export details about topics'
     for topic_id in range(topic_model.nb_topics):
         utils.save_word_distribution(topic_model.top_words(topic_id, 20),
-                                     'tom/'+token+'/static/data/word_distribution'+str(topic_id)+'.tsv')
+                                     'tom/' + token + '/static/data/word_distribution' + str(topic_id) + '.tsv')
     print 'Export details about documents'
     for doc_id in range(topic_model.corpus.size):
         utils.save_topic_distribution(topic_model.topic_distribution_for_document(doc_id),
-                                      'tom/'+token+'/static/data/topic_distribution_d'+str(doc_id)+'.tsv')
+                                      'tom/' + token + '/static/data/topic_distribution_d' + str(doc_id) + '.tsv')
     print 'Export details about words'
     for word_id in range(len(topic_model.corpus.vocabulary)):
         utils.save_topic_distribution(topic_model.topic_distribution_for_word(word_id),
-                                      'tom/'+token+'/static/data/topic_distribution_w'+str(word_id)+'.tsv')
+                                      'tom/' + token + '/static/data/topic_distribution_w' + str(word_id) + '.tsv')
+
+
+def freeze_topic_model_browser():
+    global token
+    topic_model_browser_app.config.update(
+        FREEZER_BASE_URL='http://mediamining.univ-lyon2.fr/people/guille/cats/tom/' + token,
+        FREEZER_DESTINATION='tom/' + token,
+        FREEZER_IGNORE_404_NOT_FOUND=True,
+        FREEZER_REMOVE_EXTRA_FILES=False,
+    )
+    topic_model_browser_app.debug = False
+    topic_model_browser_app.testing = True
+    topic_model_browser_app.config['ASSETS_DEBUG'] = False
+    print 'Freeze topic model browser'
+    topic_model_freezer = Freezer(topic_model_browser_app)
+    print 'Finalizing the topic model browser...'
+
+    @topic_model_freezer.register_generator
+    def topic_details():
+        for _topic_id in range(topic_model.nb_topics):
+            yield {'tid': _topic_id}
+
+    @topic_model_freezer.register_generator
+    def document_details():
+        for _doc_id in range(topic_model.corpus.size):
+            yield {'did': _doc_id}
+
+    @topic_model_freezer.register_generator
+    def word_details():
+        for _word_id in range(len(topic_model.corpus.vocabulary)):
+            yield {'wid': _word_id}
+
+    topic_model_freezer.freeze()
     print 'Done.'
 
 
@@ -395,11 +406,11 @@ def freeze_event_browser():
         FREEZER_IGNORE_404_NOT_FOUND=True,
         FREEZER_REMOVE_EXTRA_FILES=False,
     )
-    freezer = Freezer(event_browser_app)
+    event_browser_freezer = Freezer(event_browser_app)
     event_browser_app.debug = False
     event_browser_app.testing = True
     event_browser_app.config['ASSETS_DEBUG'] = False
-    freezer.freeze()
+    event_browser_freezer.freeze()
     print 'Done.'
 
 if __name__ == '__main__':

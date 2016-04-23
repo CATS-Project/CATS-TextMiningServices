@@ -2,7 +2,6 @@
 import re
 import string
 from datetime import timedelta
-
 import nltk
 import numpy as np
 import pandas
@@ -17,7 +16,7 @@ __email__ = "adrien.guille@univ-lyon2.fr"
 class Corpus:
     MAX_FEATURES = 5000
     TWITTER_TOKENS = ['rt', 'via', '@', '..', '...']
-    STOPWORDS_FILE = '../stopwords_en.txt'
+    STOPWORDS_FILE = 'stopwords_en.txt'
     PUNCTUATION = list(string.punctuation)
 
     def __init__(self, source_file_path, min_absolute_frequency=4, max_relative_frequency=0.5):
