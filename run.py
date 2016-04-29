@@ -15,6 +15,7 @@ import os
 import time
 from nltk import FreqDist, word_tokenize
 import re
+from unidecode import unidecode
 
 __author__ = "Adrien Guille"
 __email__ = "adrien.guille@univ-lyon2.fr"
@@ -106,11 +107,12 @@ def get_corpus_tom():
     for i in range(0, len(json_corpus)):
         parsed_date = datetime.fromtimestamp(json_corpus[i]['date']/1000.0)
         cleaned_text = json_corpus[i]['text'].replace('\n', '').replace('\r', '').replace('\t', ' ')
+        cleaned_text = unidecode(cleaned_text).replace('"', '')
         cleaned_text0 = re.sub(r'(?:https?\://)\S+', 'URL', cleaned_text)
         cleaned_text0 = re.sub(r'(?<=^|(?<=[^a-zA-Z0-9-\.]))@([A-Za-z_]+[A-Za-z0-9_]+)', 'USERNAME', cleaned_text0)
         name = 'N/A'
         if json_corpus[i].get('name') is not None:
-            name = json_corpus[i]['name'].replace('\n', '').replace('\r', '').replace('\t', ' ')
+            name = unidecode(json_corpus[i]['name'].replace('\n', '').replace('\r', '').replace('\t', ' ').replace('"', ''))
         csv_line = str(json_corpus[i]['id'])+'\t'+cleaned_text+'\t'+cleaned_text0+'\t'+name+'\t'+str(parsed_date.strftime('%Y-%m-%d'))
         output_file.write(csv_line+'\n')
     return None
@@ -129,7 +131,9 @@ def get_corpus_mabed():
     for i in range(0, len(json_corpus)):
         parsed_date = datetime.fromtimestamp(json_corpus[i]['date']/1000.0)
         cleaned_text = json_corpus[i]['text'].replace('\n', '').replace('\r', '').replace('\t', ' ')
-        csv_line = str(parsed_date.strftime('%Y-%m-%d %H:%M:%S'))+'\t'+cleaned_text
+        cleaned_text = unidecode(cleaned_text).replace('"', '')
+        cleaned_text0 = re.sub(r'(?:https?\://)\S+', 'URL', cleaned_text)
+        csv_line = str(parsed_date.strftime('%Y-%m-%d %H:%M:%S'))+'\t'+cleaned_text0
         output_file.write(csv_line+'\n')
     return None
 
@@ -256,7 +260,7 @@ def topic_details(tid):
         document_author_id = []
         for author_name in topic_model.corpus.authors(document_id):
             document_author_id.append((author_list.index(author_name), author_name))
-        documents.append((topic_model.corpus.short_content(document_id).capitalize(),
+        documents.append((topic_model.corpus.short_content(document_id),
                           document_author_id,
                           topic_model.corpus.date(document_id), document_id))
     return render_template('topic.html',
