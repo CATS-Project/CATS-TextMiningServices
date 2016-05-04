@@ -5,7 +5,7 @@ import urllib2
 import json
 from datetime import datetime
 import codecs
-import threading
+from multiprocessing import Process
 from tom_lib.nlp.topic_model import NonNegativeMatrixFactorization, LatentDirichletAllocation
 from tom_lib.structure.corpus import Corpus as TOM_Corpus
 from tom_lib import utils
@@ -43,7 +43,7 @@ def detect_events_init():
     get_token()
     if token is not None:
         get_corpus_mabed()
-        t_results = threading.Thread(target=transmit_events, args=(token, k, tsl, theta, sigma, lang))
+        t_results = Process(target=transmit_events, args=(token, k, tsl, theta, sigma, lang))
         t_results.start()
         return jsonify({'success': 'success'}), 200
 
@@ -53,7 +53,7 @@ def infer_topics_init():
     get_token()
     if token is not None:
         get_corpus_tom()
-        t_results = threading.Thread(target=transmit_topic_model, args=(token, model, k, min_tf, max_tf, lang))
+        t_results = Process(target=transmit_topic_model, args=(token, model, k, min_tf, max_tf, lang))
         t_results.start()
         return jsonify({'success': 'success'}), 200
 
@@ -63,7 +63,7 @@ def vocabulary_init():
     get_token()
     if token is not None:
         get_corpus_mabed()
-        t_results = threading.Thread(target=transmit_vocabulary, args=(token, ))
+        t_results = Process(target=transmit_vocabulary, args=(token, ))
         t_results.start()
         return jsonify({'success': 'success'}), 200
 
@@ -160,14 +160,17 @@ def transmit_vocabulary(t_token):
     i_f = codecs.open('csv/'+t_token+'.csv', 'r', 'utf-8')
     lines = i_f.readlines()
     all_tweets = []
+    corpus_size = 0
     for line in lines:
         row = line.split('\t')
         words = word_tokenize(row[1])
         all_tweets.extend([w.lower() for w in words])
+        corpus_size += 1
     freq_distribution = FreqDist(all_tweets)
     cats_vocabulary_elements = []
     for word, frequency in freq_distribution.most_common(1000):
-        cats_vocabulary_elements.append('["' + word + '", ' + str(frequency) + ']')
+        if float(frequency)/float(corpus_size) < 0.7:
+            cats_vocabulary_elements.append('["' + word + '", ' + str(frequency) + ']')
     cats_vocabulary = '['+','.join(cats_vocabulary_elements)+']'
     print cats_vocabulary
     result_data = {'token': t_token, 'result': cats_vocabulary}
@@ -418,4 +421,4 @@ def freeze_event_browser():
     print 'Done.'
 
 if __name__ == '__main__':
-    web_service_app.run(debug=True, host='mediamining.univ-lyon2.fr', port=5000)
+    web_service_app.run(debug=True, host='localhost', port=5000)
