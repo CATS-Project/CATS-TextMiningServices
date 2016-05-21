@@ -1,7 +1,7 @@
 # coding: utf-8
 from flask import Flask, request, jsonify, render_template
 from flask_frozen import Freezer
-import urllib2
+import urllib.request as urllib2
 import json
 from datetime import datetime
 import codecs
@@ -15,7 +15,7 @@ import os
 import time
 from nltk import FreqDist, word_tokenize
 import re
-from unidecode import unidecode
+# from unidecode import unidecode
 
 __author__ = "Adrien Guille"
 __email__ = "adrien.guille@univ-lyon2.fr"
@@ -70,7 +70,8 @@ def vocabulary_init():
 
 def get_token():
     if request.method == 'POST':
-        post_dict = json.loads(request.data)
+        str_data = request.data.decode('utf-8')
+        post_dict = json.loads(str_data)
         global token, k, model, min_tf, max_tf, theta, sigma, tsl, lang
         token = post_dict.get('token')
         parameters = post_dict.get('params')
@@ -95,43 +96,45 @@ def get_token():
 
 
 def get_corpus_tom():
-    print 'http://mediamining.univ-lyon2.fr:8080/cats/api/', token
+    print('http://mediamining.univ-lyon2.fr:8080/cats/api/', token)
     corpus_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/api')
     corpus_request.add_header('token', token)
     response = urllib2.urlopen(corpus_request)
     global json_corpus
     content = response.read()
-    json_corpus = json.loads(content)
+    str_content = content.decode('utf-8')
+    json_corpus = json.loads(str_content)
     output_file = codecs.open('csv/'+token+'.csv', 'w', 'utf-8')
     output_file.write('id\tshort_content\tfull_content\tauthors\tdate\n')
     for i in range(0, len(json_corpus)):
         parsed_date = datetime.fromtimestamp(json_corpus[i]['date']/1000.0)
         cleaned_text = json_corpus[i]['text'].replace('\n', '').replace('\r', '').replace('\t', ' ')
-        cleaned_text = unidecode(cleaned_text).replace('"', '')
+        cleaned_text = cleaned_text.replace('"', '')
         cleaned_text0 = re.sub(r'(?:https?\://)\S+', 'URL', cleaned_text)
         cleaned_text0 = re.sub(r'(?<=^|(?<=[^a-zA-Z0-9-\.]))@([A-Za-z_]+[A-Za-z0-9_]+)', 'USERNAME', cleaned_text0)
         name = 'N/A'
         if json_corpus[i].get('name') is not None:
-            name = unidecode(json_corpus[i]['name'].replace('\n', '').replace('\r', '').replace('\t', ' ').replace('"', ''))
+            name = json_corpus[i]['name'].replace('\n', '').replace('\r', '').replace('\t', ' ').replace('"', '')
         csv_line = str(json_corpus[i]['id'])+'\t'+cleaned_text+'\t'+cleaned_text0+'\t'+name+'\t'+str(parsed_date.strftime('%Y-%m-%d'))
         output_file.write(csv_line+'\n')
     return None
 
 
 def get_corpus_mabed():
-    print 'http://mediamining.univ-lyon2.fr:8080/cats/api/', token
+    print('http://mediamining.univ-lyon2.fr:8080/cats/api/', token)
     corpus_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/api')
     corpus_request.add_header('token', token)
     response = urllib2.urlopen(corpus_request)
     global json_corpus
     content = response.read()
-    json_corpus = json.loads(content)
+    str_content = content.decode('utf-8')
+    json_corpus = json.loads(str_content)
     output_file = codecs.open('csv/'+str(token)+'.csv', 'w', 'utf-8')
     output_file.write('date\ttext\n')
     for i in range(0, len(json_corpus)):
         parsed_date = datetime.fromtimestamp(json_corpus[i]['date']/1000.0)
         cleaned_text = json_corpus[i]['text'].replace('\n', '').replace('\r', '').replace('\t', ' ')
-        cleaned_text = unidecode(cleaned_text).replace('"', '')
+        cleaned_text = cleaned_text.replace('"', '')
         cleaned_text0 = re.sub(r'(?:https?\://)\S+', 'URL', cleaned_text)
         csv_line = str(parsed_date.strftime('%Y-%m-%d %H:%M:%S'))+'\t'+cleaned_text0
         output_file.write(csv_line+'\n')
@@ -150,9 +153,9 @@ def transmit_events(t_token, t_k, t_tsl, t_theta, t_sigma, t_lang):
     json_data = json.dumps(result_data)
     results_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/module/result')
     results_request.add_header('Content-Type', 'application/json')
-    results_request.add_data(json_data)
+    results_request.data = json_data.encode('utf-8')
     urllib2.urlopen(results_request)
-    print 'Transmitted events for token '+t_token
+    print('Transmitted events for token '+t_token)
     os.remove('csv/' + t_token + '.csv')
 
 
@@ -172,14 +175,14 @@ def transmit_vocabulary(t_token):
         if float(frequency)/float(corpus_size) < 0.7:
             cats_vocabulary_elements.append('["' + word + '", ' + str(frequency) + ']')
     cats_vocabulary = '['+','.join(cats_vocabulary_elements)+']'
-    print cats_vocabulary
+    print(cats_vocabulary)
     result_data = {'token': t_token, 'result': cats_vocabulary}
     json_data = json.dumps(result_data)
     results_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/module/resultFile')
     results_request.add_header('Content-Type', 'application/json')
-    results_request.add_data(json_data)
+    results_request.data = json_data.encode('utf-8')
     urllib2.urlopen(results_request)
-    print 'Transmitted vocabulary for token '+t_token
+    print('Transmitted vocabulary for token '+t_token)
     os.remove('csv/' + t_token + '.csv')
 
 
@@ -203,14 +206,15 @@ def transmit_topic_model(t_token, t_model, t_k, t_min_tf, t_max_tf, t_lang):
         topic_model.infer_topics(t_k)
         result_data = {'token': t_token, 'result': '<a href="http://mediamining.univ-lyon2.fr/people/guille/cats/tom/' +
                                                    t_token+'/topic_cloud.html" target="_blank">Open the topic model browser in a new window</a>'}
-        prepare_topic_model_browser()
         json_data = json.dumps(result_data)
         results_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/module/result')
         results_request.add_header('Content-Type', 'application/json')
-        results_request.add_data(json_data)
+        results_request.data = json_data.encode('utf-8')
         urllib2.urlopen(results_request)
-        print 'Transmitted topic model for token '+t_token
+        print('Transmitted topic model for token '+t_token)
+        prepare_topic_model_browser()
         freeze_topic_model_browser()
+        prepare_topic_model_browser()
         os.remove('csv/' + t_token + '.csv')
 
 
@@ -320,15 +324,15 @@ def prepare_topic_model_browser():
     topic_associations = topic_model.documents_per_topic()
     author_list = topic_model.corpus.all_authors()
     utils.save_topic_cloud(topic_model, 'tom/' + token + '/static/data/topic_cloud.json')
-    print 'Export details about topics'
+    print('Export details about topics')
     for topic_id in range(topic_model.nb_topics):
         utils.save_word_distribution(topic_model.top_words(topic_id, 20),
                                      'tom/' + token + '/static/data/word_distribution' + str(topic_id) + '.tsv')
-    print 'Export details about documents'
+    print('Export details about documents')
     for doc_id in range(topic_model.corpus.size):
         utils.save_topic_distribution(topic_model.topic_distribution_for_document(doc_id),
                                       'tom/' + token + '/static/data/topic_distribution_d' + str(doc_id) + '.tsv')
-    print 'Export details about words'
+    print('Export details about words')
     for word_id in range(len(topic_model.corpus.vocabulary)):
         utils.save_topic_distribution(topic_model.topic_distribution_for_word(word_id),
                                       'tom/' + token + '/static/data/topic_distribution_w' + str(word_id) + '.tsv')
@@ -345,9 +349,9 @@ def freeze_topic_model_browser():
     topic_model_browser_app.debug = False
     topic_model_browser_app.testing = True
     topic_model_browser_app.config['ASSETS_DEBUG'] = False
-    print 'Freeze topic model browser'
+    print('Freeze topic model browser')
     topic_model_freezer = Freezer(topic_model_browser_app)
-    print 'Finalizing the topic model browser...'
+    print('Finalizing the topic model browser...')
 
     @topic_model_freezer.register_generator
     def topic_details():
@@ -365,7 +369,7 @@ def freeze_topic_model_browser():
             yield {'wid': _word_id}
 
     topic_model_freezer.freeze()
-    print 'Done.'
+    print('Done.')
 
 
 @event_browser_app.route('/')
@@ -374,7 +378,7 @@ def index():
     impact_data = []
     formatted_dates = []
     for i in range(0, mabed.corpus.time_slice_count):
-        formatted_dates.append(long(time.mktime(mabed.corpus.to_date(i).timetuple())) * 1000)
+        formatted_dates.append(int(time.mktime(mabed.corpus.to_date(i).timetuple())) * 1000)
     for event in mabed.events:
         mag = event[0]
         main_term = event[2]
@@ -406,7 +410,7 @@ def index():
 def freeze_event_browser():
     global topic_associations, author_list, token
     os.makedirs('mabed/'+token+'/static/data')
-    print 'Freeze event browser'
+    print('Freeze event browser')
     event_browser_app.config.update(
         FREEZER_BASE_URL='http://mediamining.univ-lyon2.fr/people/guille/cats/mabed/'+token,
         FREEZER_DESTINATION='mabed/'+token,
@@ -418,7 +422,7 @@ def freeze_event_browser():
     event_browser_app.testing = True
     event_browser_app.config['ASSETS_DEBUG'] = False
     event_browser_freezer.freeze()
-    print 'Done.'
+    print('Done.')
 
 if __name__ == '__main__':
     web_service_app.run(debug=True, host='localhost', port=5000)

@@ -70,6 +70,7 @@
         chart.yAxis.scale().domain([0, 20]);
         chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
         chart.yAxis.tickFormat(d3.format(',.4f'));
+        chart.height(150);
 
         chart.legend.vers('furious');
 

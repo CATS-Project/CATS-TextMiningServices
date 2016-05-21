@@ -1,9 +1,11 @@
 # coding: utf-8
-import timeit
+from multiprocessing import Pool
+
 import networkx as nx
 import numpy as np
-import stats
-from corpus import Corpus
+
+import mabed_lib.stats as stats
+import mabed_lib.vector as vector
 
 __authors__ = "Adrien Guille, Nicolas Dugué"
 __email__ = "adrien.guille@univ-lyon2.fr"
@@ -22,30 +24,22 @@ class MABED:
         return self.phase2(basic_events, k, theta, sigma)
 
     def phase1(self):
-        print 'Phase 1...'
-        basic_events = []
-
-        # iterate through the vocabulary
-        for word, word_index in self.corpus.vocabulary.iteritems():
-            mention_freq = self.corpus.mention_freq[word_index, :]
-            total_mention_freq = np.sum(mention_freq)
-
-            # compute the time-series that describes the evolution of mention-anomaly
-            anomaly = []
-            for i in range(0, self.corpus.time_slice_count):
-                anomaly.append(self.anomaly(i, mention_freq[i], total_mention_freq))
-
-                # identify the interval that maximizes the magnitude of impact
-                interval_max = self.maximum_contiguous_subsequence_sum(anomaly)
-                if interval_max is not None:
-                    mag = np.sum(anomaly[interval_max[0]:interval_max[1]])
-                    basic_event = (mag, interval_max, word, anomaly)
-                    basic_events.append(basic_event)
-
-        print 'Phase 1: %d events' % len(basic_events)
+        print('Phase 1...')
+        # parallelize phase 1 using a pool of processes (number of processes = number of cores).
+        p = Pool()
+        basic_events = p.map(self.maximum_contiguous_subsequence_sum, self.corpus.vocabulary.items())
+        print('   Detected events: %d' % len(basic_events))
         return basic_events
 
-    def maximum_contiguous_subsequence_sum(self, anomaly):
+    def maximum_contiguous_subsequence_sum(self, vocabulary_entry):
+        mention_freq = vector.to_dense_vector(self.corpus.mention_freq[vocabulary_entry[1], :],
+                                              self.corpus.time_slice_count)
+        total_mention_freq = np.sum(mention_freq)
+
+        # compute the time-series that describes the evolution of mention-anomaly
+        anomaly = []
+        for i in range(0, self.corpus.time_slice_count):
+            anomaly.append(self.anomaly(i, mention_freq[i], total_mention_freq))
         max_ending_here = max_so_far = 0
         a = b = a_ending_here = 0
         for idx, ano in enumerate(anomaly):
@@ -54,15 +48,19 @@ class MABED:
                 # a new bigger sum may start from here
                 a_ending_here = idx
             if max_ending_here > max_so_far:
-                # the new sum from a_ending_here to idx is bigger !
+                # the new sum from a_ending_here to idx is bigger
                 a = a_ending_here+1
                 max_so_far = max_ending_here
                 b = idx
+
+        # return the event description
         max_interval = (a, b)
-        return max_interval
+        mag = np.sum(anomaly[a:b+1])
+        basic_event = (mag, max_interval, vocabulary_entry[0], anomaly)
+        return basic_event
 
     def phase2(self, basic_events, k=10, theta=0.7, sigma=0.5):
-        print 'Phase 2...'
+        print('Phase 2...')
 
         # sort the events detected during phase 1 according to their magnitude of impact
         basic_events.sort(key=lambda tup: tup[0], reverse=True)
@@ -79,13 +77,15 @@ class MABED:
             basic_event = basic_events[i]
             main_word = basic_event[2]
             candidate_words = self.corpus.cooccurring_words(basic_event, 10)
-            main_word_freq = self.corpus.global_freq[self.corpus.vocabulary[main_word], :]
+            main_word_freq = vector.to_dense_vector(self.corpus.global_freq[self.corpus.vocabulary[main_word], :],
+                                                    self.corpus.time_slice_count)
             related_words = []
 
             # identify candidate words based on co-occurrence
             if candidate_words is not None:
                 for candidate_word in candidate_words:
-                    candidate_word_freq = self.corpus.global_freq[self.corpus.vocabulary[candidate_word], :]
+                    candidate_word_freq = vector.to_dense_vector(self.corpus.global_freq[self.corpus.vocabulary[candidate_word], :],
+                                                                 self.corpus.time_slice_count)
 
                     # compute correlation and filter according to theta
                     weight = (stats.erdem_correlation(main_word_freq, candidate_word_freq) + 1) / 2
@@ -145,37 +145,18 @@ class MABED:
                     break
             final_event = (event[0], event[1], main_term, event[3], event[4])
             final_events.append(final_event)
-            self.print_event(final_event)
         return final_events
 
     def print_event(self, event):
         related_words = []
         for related_word, weight in event[3]:
             related_words.append(related_word+'('+str("{0:.2f}".format(weight))+')')
-        print '%s - %s: %s (%s)' % (str(self.corpus.to_date(event[1][0])),
-                                    str(self.corpus.to_date(event[1][1])),
-                                    event[2],
-                                    ', '.join(related_words))
+        print('   %s - %s: %s (%s)' % (str(self.corpus.to_date(event[1][0])),
+                                       str(self.corpus.to_date(event[1][1])),
+                                       event[2],
+                                       ', '.join(related_words)))
 
-if __name__ == '__main__':
-    print 'Loading corpus...'
-    start_time = timeit.default_timer()
-    my_corpus = Corpus('../input/messages1.csv')
-    elapsed = timeit.default_timer() - start_time
-    print 'Corpus loaded in %f seconds.' % elapsed
-
-    time_slice_length = 30
-    print 'Partitioning tweets into %d-minute time-slices...' % time_slice_length
-    start_time = timeit.default_timer()
-    my_corpus.discretize(time_slice_length)
-    print '   Time-slices: %i' % my_corpus.time_slice_count
-    elapsed = timeit.default_timer() - start_time
-    print 'Partitioning done in %f seconds.' % elapsed
-
-    print 'Running MABED...'
-    start_time = timeit.default_timer()
-    mabed = MABED(my_corpus)
-    top_k = 20
-    mabed.run(k=top_k, theta=0.6, sigma=0.6)
-    elapsed = timeit.default_timer() - start_time
-    print 'Top %d events detected in %f seconds.' % (k, elapsed)
+    def print_events(self):
+        print('   Top %d events:' % len(self.events))
+        for event in self.events:
+            self.print_event(event)
