@@ -14,6 +14,7 @@ from mabed_lib.mabed import MABED
 import os
 import time
 from nltk import FreqDist, word_tokenize
+from nltk.corpus import stopwords
 import re
 # from unidecode import unidecode
 
@@ -63,7 +64,7 @@ def vocabulary_init():
     get_token()
     if token is not None:
         get_corpus_mabed()
-        t_results = Process(target=transmit_vocabulary, args=(token, ))
+        t_results = Process(target=transmit_vocabulary, args=(token,lang ))
         t_results.start()
         return jsonify({'success': 'success'}), 200
 
@@ -159,7 +160,12 @@ def transmit_events(t_token, t_k, t_tsl, t_theta, t_sigma, t_lang):
     os.remove('csv/' + t_token + '.csv')
 
 
-def transmit_vocabulary(t_token):
+def transmit_vocabulary(t_token, t_lang):
+    languages = ['danish', 'dutch', 'english', 'finnish', 'french', 'german', 'hungarian', 'italian',
+                 'norwegian', 'portuguese', 'russian', 'spanish', 'swedish', 'turkish']
+    voc_stopwords = set()
+    if t_lang in languages:
+        voc_stopwords = set(stopwords.words(t_lang))
     i_f = codecs.open('csv/'+t_token+'.csv', 'r', 'utf-8')
     lines = i_f.readlines()
     all_tweets = []
@@ -172,7 +178,7 @@ def transmit_vocabulary(t_token):
     freq_distribution = FreqDist(all_tweets)
     cats_vocabulary_elements = []
     for word, frequency in freq_distribution.most_common(1000):
-        if float(frequency)/float(corpus_size) < 0.7:
+        if word not in voc_stopwords:
             cats_vocabulary_elements.append('["' + word + '", ' + str(frequency) + ']')
     cats_vocabulary = '['+','.join(cats_vocabulary_elements)+']'
     print(cats_vocabulary)
