@@ -194,8 +194,13 @@ def transmit_vocabulary(t_token, t_lang):
 
 def transmit_topic_model(t_token, t_model, t_k, t_min_tf, t_max_tf, t_lang):
     TOM_Corpus.MAX_FEATURES = 5000
+    vectorization = ''
+    if t_model == 'LDA':
+        vectorization = 'tf'
+    elif t_model == 'NMF':
+        vectorization = 'tfidf'
     corpus = TOM_Corpus(source_file_path='csv/'+t_token + '.csv',
-                        vectorization='tf',
+                        vectorization=vectorization,
                         max_relative_frequency=t_max_tf,
                         min_absolute_frequency=t_min_tf,
                         language=t_lang,
@@ -402,7 +407,8 @@ def index():
         for i in range(0, mabed.corpus.time_slice_count):
             value = 0
             if time_interval[0] <= i <= time_interval[1]:
-                value = raw_anomaly[i]
+                if raw_anomaly[i] > 0:
+                    value = raw_anomaly[i]
             formatted_anomaly.append('[' + str(formatted_dates[i]) + ',' + str(value) + ']')
         impact_data.append('{"key":"' + main_term + '", "values":[' + ','.join(formatted_anomaly) + ']}')
     return render_template('template.html',
