@@ -123,7 +123,7 @@ a.class1{
 }
 a.class1:link {color: #444; text-decoration:none;}
 a.class1:visited {color: #444;}
-a.class1:hover {color: #3DC9FF;}
+a.class1:hover {color: #55acee;}
 
 
 a.class2{
@@ -131,8 +131,8 @@ a.class2{
 }
 a.class2:link {color: #888; text-decoration:none;}
 a.class2:visited {color: #888;}
-a.class2:hover {color: #3DC9FF;}
+a.class2:hover {color: #55acee;}
 
-a:hover {color: #3DC9FF;}
-a:active {color: #000;}
-a:visited {color: #444;}
+a:visited {color: #55acee;}
+a:hover {color: #000;}
+a:active {color: #55acee;}

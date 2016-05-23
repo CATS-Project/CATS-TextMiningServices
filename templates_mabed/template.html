@@ -17,10 +17,13 @@
     </div>
     <div id="header">
         <h1>Mention-anomaly-based Event Detection and Tracking in Twitter</h1>
-        Parameters: k={{ k }}, theta={{ theta }}, sigma={{ sigma }}
+        <p>
+            Parameters: k={{ k }}, theta={{ theta }}, sigma={{ sigma }}<br>
+            <a href="#event_table">Event table</a> - <a href="#event_impact">Event impact</a>
+        </p>
     </div>
     <div class="main-content">
-        <section>Event table</section>
+        <section id="event_table">Event table</section>
             <table id="events" class="display" cellspacing="0" width="900px">
                 <thead>
                     <tr>
@@ -43,8 +46,8 @@
                     {% endfor %}
                 </tbody>
             </table>
-        <section>Event impact</section>
-        <svg id="chart1"></svg>
+        <section id="event_impact">Event impact</section>
+        <svg id="chart1" style="height: 300px;"></svg>
     </div>
 </body>
 <script>
@@ -70,7 +73,7 @@
         chart.yAxis.scale().domain([0, 20]);
         chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
         chart.yAxis.tickFormat(d3.format(',.4f'));
-        chart.height(150);
+        chart.height(300);
 
         chart.legend.vers('furious');
 
