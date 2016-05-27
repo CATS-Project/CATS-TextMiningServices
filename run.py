@@ -247,6 +247,7 @@ def index():
 @topic_model_browser_app.route('/topic_cloud.html')
 def topic_cloud():
     return render_template('topic_cloud.html',
+                           token=token,
                            topic_ids=range(topic_model.nb_topics),
                            doc_ids=range(topic_model.corpus.size))
 
@@ -282,6 +283,7 @@ def topic_details(tid):
                           document_author_id,
                           topic_model.corpus.date(document_id), document_id))
     return render_template('topic.html',
+                           token=token,
                            topic_id=tid,
                            frequency=round(topic_model.topic_frequency(int(tid))*100, 2),
                            documents=documents,
@@ -300,6 +302,7 @@ def document_details(did):
     nb_words = 20
     documents = []
     return render_template('document.html',
+                           token=token,
                            doc_id=did,
                            words=word_list[:nb_words],
                            topic_ids=range(topic_model.nb_topics),
@@ -322,6 +325,7 @@ def word_details(wid):
                           document_author_id,
                           topic_model.corpus.date(document_id), document_id))
     return render_template('word.html',
+                           token=token,
                            word_id=wid,
                            word=topic_model.corpus.word_for_id(int(wid)),
                            topic_ids=range(topic_model.nb_topics),
@@ -356,6 +360,7 @@ def freeze_topic_model_browser():
         FREEZER_DESTINATION='tom/' + token,
         FREEZER_IGNORE_404_NOT_FOUND=True,
         FREEZER_REMOVE_EXTRA_FILES=False,
+        FREEZER_DESTINATION_IGNORE=['.tsv', '.json']
     )
     topic_model_browser_app.debug = False
     topic_model_browser_app.testing = True

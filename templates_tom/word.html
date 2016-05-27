@@ -93,7 +93,7 @@ var svg = d3.select("bar-chart").append("svg")
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 svg.call(tip);
-d3.tsv("{{ url_for('static', filename = 'data/topic_distribution_w'+word_id+'.tsv') }}", type, function(error, data) {
+d3.tsv("http://mediamining.univ-lyon2.fr/people/guille/cats/tom/{{token}}/static/data/topic_distribution_w{{word_id}}.tsv", type, function(error, data) {
   x.domain(data.map(function(d) { return d.topic; }));
   y.domain([0, d3.max(data, function(d) { return d.weight; })]);
   svg.append("g")

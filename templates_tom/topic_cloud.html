@@ -43,7 +43,7 @@ text {
     </div>
     <topic-graph></topic-graph>
 </body>
-<script src="{{ url_for('static', filename = 'js/d3.min.js' )}}"></script>
+<script src="http://mediamining.univ-lyon2.fr/people/guille/cats/tom/js/d3.min.js"></script>
 <script>
 var width = window.innerWidth
 || document.documentElement.clientWidth
@@ -76,7 +76,7 @@ function redraw() {
       + " scale(" + d3.event.scale + ")");
 }
 
-d3.json("{{ url_for('static', filename = 'data/topic_cloud.json') }}", function(error, cloud) {
+d3.json("http://mediamining.univ-lyon2.fr/people/guille/cats/tom/{{token}}/static/data/topic_cloud.json", function(error, cloud) {
   if (error) throw error;
 
   force
