@@ -13,7 +13,7 @@ from mabed_lib.corpus import Corpus as MABED_Corpus
 from mabed_lib.mabed import MABED
 import os
 import time
-from nltk import FreqDist, word_tokenize
+from nltk import FreqDist, word_tokenize, sent_tokenize, pos_tag, chunk
 from nltk.corpus import stopwords
 import re
 # from unidecode import unidecode
@@ -64,7 +64,17 @@ def vocabulary_init():
     get_token()
     if token is not None:
         get_corpus_mabed()
-        t_results = Process(target=transmit_vocabulary, args=(token,lang ))
+        t_results = Process(target=transmit_vocabulary, args=(token, lang))
+        t_results.start()
+        return jsonify({'success': 'success'}), 200
+
+
+@web_service_app.route('/identify_named_entities/init', methods=['GET', 'POST'])
+def identify_named_entities_init():
+    get_token()
+    if token is not None:
+        get_corpus_mabed()
+        t_results = Process(target=transmit_named_entities, args=(token, ))
         t_results.start()
         return jsonify({'success': 'success'}), 200
 
@@ -97,8 +107,8 @@ def get_token():
 
 
 def get_corpus_tom():
-    print('http://mediamining.univ-lyon2.fr:8080/cats/api/', token)
-    corpus_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/api')
+    print('http://mediamining.univ-lyon2.fr/cats/api/', token)
+    corpus_request = urllib2.Request('http://mediamining.univ-lyon2.fr/cats/api')
     corpus_request.add_header('token', token)
     response = urllib2.urlopen(corpus_request)
     global json_corpus
@@ -122,8 +132,8 @@ def get_corpus_tom():
 
 
 def get_corpus_mabed():
-    print('http://mediamining.univ-lyon2.fr:8080/cats/api/', token)
-    corpus_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/api')
+    print('http://mediamining.univ-lyon2.fr/cats/api/', token)
+    corpus_request = urllib2.Request('http://mediamining.univ-lyon2.fr/cats/api')
     corpus_request.add_header('token', token)
     response = urllib2.urlopen(corpus_request)
     global json_corpus
@@ -152,7 +162,7 @@ def transmit_events(t_token, t_k, t_tsl, t_theta, t_sigma, t_lang):
                                                t_token+'" target="_blank">Open the event browser in a new window</a>'}
     freeze_event_browser()
     json_data = json.dumps(result_data)
-    results_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/module/result')
+    results_request = urllib2.Request('http://mediamining.univ-lyon2.fr/cats/module/result')
     results_request.add_header('Content-Type', 'application/json')
     results_request.data = json_data.encode('utf-8')
     urllib2.urlopen(results_request)
@@ -184,11 +194,56 @@ def transmit_vocabulary(t_token, t_lang):
     print(cats_vocabulary)
     result_data = {'token': t_token, 'result': cats_vocabulary}
     json_data = json.dumps(result_data)
-    results_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/module/resultFile')
+    results_request = urllib2.Request('http://mediamining.univ-lyon2.fr/cats/module/resultFile')
     results_request.add_header('Content-Type', 'application/json')
     results_request.data = json_data.encode('utf-8')
     urllib2.urlopen(results_request)
     print('Transmitted vocabulary for token '+t_token)
+    os.remove('csv/' + t_token + '.csv')
+
+
+def extract_named_entities_from_text(text):
+    sentences = sent_tokenize(text)
+    tokenized_sentences = [word_tokenize(sentence) for sentence in sentences]
+    tagged_sentences = [pos_tag(sentence) for sentence in tokenized_sentences]
+    chunked_sentences = chunk.ne_chunk_sents(tagged_sentences, binary=True)
+    entity_names = []
+    for tree in chunked_sentences:
+        entity_names.extend(extract_named_entities_from_tree(tree))
+    return entity_names
+
+
+def extract_named_entities_from_tree(t):
+    entities = []
+    if hasattr(t, 'label') and t.label:
+        if t.label() == 'NE':
+            entities.append(' '.join([child[0] for child in t]))
+        else:
+            for child in t:
+                entities.extend(extract_named_entities_from_tree(child))
+    return entities
+
+
+def transmit_named_entities(t_token):
+    i_f = codecs.open('csv/'+t_token+'.csv', 'r', 'utf-8')
+    lines = i_f.readlines()
+    named_entities = []
+    for line in lines:
+        named_entities.extend(extract_named_entities_from_text(line))
+
+    freq_distribution = FreqDist(named_entities)
+    named_entities_freq = []
+    for ne, frequency in freq_distribution.most_common(1000):
+        named_entities_freq.append('["' + ne + '", ' + str(frequency) + ']')
+    cats_named_entities = '['+','.join(named_entities_freq)+']'
+    print(cats_named_entities)
+    result_data = {'token': t_token, 'result': cats_named_entities}
+    json_data = json.dumps(result_data)
+    results_request = urllib2.Request('http://mediamining.univ-lyon2.fr/cats/module/resultFile')
+    results_request.add_header('Content-Type', 'application/json')
+    results_request.data = json_data.encode('utf-8')
+    urllib2.urlopen(results_request)
+    print('Transmitted named entities for token '+t_token)
     os.remove('csv/' + t_token + '.csv')
 
 
@@ -218,7 +273,7 @@ def transmit_topic_model(t_token, t_model, t_k, t_min_tf, t_max_tf, t_lang):
         result_data = {'token': t_token, 'result': '<a href="http://mediamining.univ-lyon2.fr/people/guille/cats/tom/' +
                                                    t_token+'/topic_cloud.html" target="_blank">Open the topic model browser in a new window</a>'}
         json_data = json.dumps(result_data)
-        results_request = urllib2.Request('http://mediamining.univ-lyon2.fr:8080/cats/module/result')
+        results_request = urllib2.Request('http://mediamining.univ-lyon2.fr/cats/module/result')
         results_request.add_header('Content-Type', 'application/json')
         results_request.data = json_data.encode('utf-8')
         urllib2.urlopen(results_request)
@@ -442,4 +497,4 @@ def freeze_event_browser():
     print('Done.')
 
 if __name__ == '__main__':
-    web_service_app.run(debug=True, host='localhost', port=5000)
+    web_service_app.run(debug=False, host='localhost', port=5000)
